@@ -84,8 +84,9 @@ class RedisCache(Cache):
         # из Redis'а по какой-то причине
         return {
             key: self._deserialize(decoded_value, cast_to)
-            for (key, cast_to), decoded_value in zip(keys.items(), decoded_values)
-            if decoded_value
+            for (key, cast_to), decoded_value in zip(
+                keys.items(), decoded_values
+            )
         }
 
     def invalidate(self, key: Hashable) -> None:

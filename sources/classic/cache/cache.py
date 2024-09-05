@@ -21,7 +21,9 @@ class Cache(ABC):
     def _serialize(self, element: Any) -> bytes:
         return msgspec.json.encode(element)
 
-    def _deserialize(self, element: bytes, cast_to: Any) -> Any:
+    def _deserialize(self, element: bytes | None, cast_to: Any) -> Any:
+        if element is None:
+            return None
         return msgspec.json.decode(element, type=cast_to)
 
     @abstractmethod

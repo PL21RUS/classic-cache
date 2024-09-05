@@ -6,7 +6,7 @@ from fakeredis import FakeRedis
 from freezegun import freeze_time
 
 from classic.cache import Cache
-from classic.cache.caches import RedisCache
+from classic.cache.caches import RedisCache, InMemoryCache
 
 
 @dataclass(frozen=True)
@@ -21,8 +21,13 @@ def redis_cache():
     return RedisCache(connection=FakeRedis())
 
 
+@pytest.fixture(scope='function')
+def in_memory_cache():
+    return InMemoryCache()
+
+
 # ссылки на экземпляров реализации кэшей (используем название фикстуры)
-cache_instances = ('redis_cache', )
+cache_instances = ('redis_cache', 'in_memory_cache')
 
 
 # параметизированный экземпляр кэша (request.param - фикстура с реализацией)
@@ -122,7 +127,8 @@ def test_get_set_many_expired(cache_instance, cached_value_type, next_year):
     )
 
     with freeze_time(next_year):
-        assert not cache_instance.get_many(elements)
+        results = cache_instance.get_many(elements)
+        assert all(item is None for item in results.values())
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
@@ -140,7 +146,10 @@ def test_get_set_many_partial(cache_instance, cached_value_type, next_year):
     )
 
     with freeze_time(next_year):
-        result = cache_instance.get_many(all_keys)
+        result = [
+            el for el in cache_instance.get_many(all_keys).values()
+            if el is not None
+        ]
         assert len(result) == 1
 
 
@@ -163,7 +172,8 @@ def test_invalidate_all(cache_instance, cached_value_type):
     cache_instance.set_many(expected, ttl)
     cache_instance.invalidate_all()
 
-    assert not cache_instance.get_many(elements)
+    results = cache_instance.get_many(elements)
+    assert all(item is None for item in results.values())
 
 
 @pytest.mark.parametrize(
