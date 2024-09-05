@@ -1,12 +1,26 @@
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
+import msgspec
 from fakeredis import FakeRedis
 from freezegun import freeze_time
 
 from classic.cache import Cache
 from classic.cache.caches import RedisCache, InMemoryCache
+
+
+@pytest.fixture(scope='function')
+def cached_value_type():
+    return msgspec.defstruct(
+        'CachedValue',
+        [
+            ('value', float),
+            ('ttl', int | None, None),
+            ('created', float, msgspec.field(default_factory=time.monotonic)),
+        ]
+    )
 
 
 @dataclass(frozen=True)

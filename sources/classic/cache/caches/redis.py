@@ -21,7 +21,7 @@ class RedisCache(Cache):
         self,
         connection: redis.Redis | redis.client.Pipeline,
         key: Hashable,
-        cached_value: CachedValueType,
+        value: CachedValueType,
         ttl: int | None = None,
     ) -> None:
         """
@@ -33,7 +33,7 @@ class RedisCache(Cache):
         :param ttl: время "жизни" элемента
         """
         encoded_key = self._serialize(key)
-        encoded_value = self._serialize(cached_value)
+        encoded_value = self._serialize(value)
 
         if ttl:
             # set TTL operation (will be deleted after x seconds)

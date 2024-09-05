@@ -1,5 +1,5 @@
-from typing import Any, Mapping, Hashable, Type
 import time
+from typing import Any, Mapping, Hashable, Type
 
 from classic.components import component
 
