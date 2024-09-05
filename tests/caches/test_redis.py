@@ -1,13 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
-import time
 
 import pytest
-import msgspec
 from fakeredis import FakeRedis
 from freezegun import freeze_time
 
-from classic.cache import Cache, CachedValue
+from classic.cache import Cache
 from classic.cache.caches import RedisCache
 
 
@@ -39,39 +37,33 @@ def next_year():
     return datetime(year=today.year + 1, month=today.month, day=today.day)
 
 
-# interface tests
-
-
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_without_ttl(cache_instance, cached_value, cached_value_type):
+def test_get_set_without_ttl(cache_instance, cached_value_type):
     key = 'test'
-    cache_instance.set(key, cached_value.value, cached_value_type)
-    cache_result = cache_instance.get(key, type_=cached_value_type)
+    cache_instance.set(key, cached_value_type(10.5))
+    cache_result = cache_instance.get(key, cast_to=cached_value_type)
 
     assert (
-        cache_result and cache_result.value == cached_value.value
-        and cache_result.ttl is None
+        cache_result and cache_result.value == 10.5 and cache_result.ttl is None
     )
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_with_ttl(cache_instance, cached_value, cached_value_type):
-    key = 'test'
+def test_get_set_with_ttl(cache_instance, cached_value_type):
+    key, value, ttl = 'test', -0.1, 60
 
-    cache_instance.set(key, cached_value.value, cached_value_type, cached_value.ttl)
+    cache_instance.set(key, cached_value_type(value, ttl), ttl)
     cache_result = cache_instance.get(key, cached_value_type)
 
     assert (
-        cache_result and cache_result.value == cached_value.value
-        and cache_result.ttl == cached_value.ttl
+        cache_result and cache_result.value == value and cache_result.ttl == ttl
     )
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_expired(cache_instance, cached_value, next_year, cached_value_type):
-    key = 'test'
-
-    cache_instance.set(key, cached_value.value, cached_value_type, cached_value.ttl)
+def test_get_set_expired(cache_instance, next_year, cached_value_type):
+    key, value, ttl = 'test', 0.1, 10
+    cache_instance.set(key, cached_value_type(value, ttl), ttl)
 
     # make sure that the cached value is expired by using 1 year gap
     with freeze_time(next_year):
@@ -79,21 +71,19 @@ def test_get_set_expired(cache_instance, cached_value, next_year, cached_value_t
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_many_without_ttl(cache_instance, cached_value):
-    keys = [f'test_{index}' for index in range(5)]
-    expected = {key: CachedValue(cached_value.value) for key in keys}
+def test_get_set_many_without_ttl(cache_instance, cached_value_type):
+    elements = {f'test_{index}': cached_value_type for index in range(5)}
+    value = 100.0
+    expected = {key: type_(value) for key, type_ in elements.items()}
 
-    cache_instance.set_many(
-        {key: element.value
-         for key, element in expected.items()}
-    )
+    cache_instance.set_many({key: element for key, element in expected.items()})
 
-    result = cache_instance.get_many(keys)
+    result = cache_instance.get_many(elements)
 
     assert {*result.keys()} == {*expected.keys()}
 
     for key, element in result.items():
-        expected_element: CachedValue = expected[key]
+        expected_element = expected[key]
         assert (
             expected_element.value == element.value
             and expected_element.ttl == expected_element.ttl
@@ -101,21 +91,21 @@ def test_get_set_many_without_ttl(cache_instance, cached_value):
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_many_with_ttl(cache_instance, cached_value):
-    keys = [f'test_{index}' for index in range(5)]
-    expected = {key: cached_value for key in keys}
+def test_get_set_many_with_ttl(cache_instance, cached_value_type):
+    elements = {f'test_{index}': cached_value_type for index in range(5)}
+    value, ttl = 1.1, 60
+    expected = {key: type_(value) for key, type_ in elements.items()}
 
     cache_instance.set_many(
-        {key: element.value
-         for key, element in expected.items()}, cached_value.ttl
+        {key: element for key, element in expected.items()}, ttl
     )
 
-    result = cache_instance.get_many(keys)
+    result = cache_instance.get_many(elements)
 
     assert {*result.keys()} == {*expected.keys()}
 
     for key, element in result.items():
-        expected_element: CachedValue = expected[key]
+        expected_element = expected[key]
         assert (
             expected_element.value == element.value
             and expected_element.ttl == expected_element.ttl
@@ -123,28 +113,30 @@ def test_get_set_many_with_ttl(cache_instance, cached_value):
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_many_expired(cache_instance, cached_value, next_year):
-    keys = [f'test_{index}' for index in range(5)]
+def test_get_set_many_expired(cache_instance, cached_value_type, next_year):
+    elements = {f'test_{index}': cached_value_type(1.1) for index in range(5)}
+    ttl = 100
 
     cache_instance.set_many(
-        {key: cached_value.value
-         for key in keys}, cached_value.ttl
+        {key: element for key, element in elements.items()}, ttl
     )
 
     with freeze_time(next_year):
-        assert not cache_instance.get_many(keys)
+        assert not cache_instance.get_many(elements)
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_get_set_many_partial(cache_instance, cached_value, next_year):
+def test_get_set_many_partial(cache_instance, cached_value_type, next_year):
     non_expired_key = 'test_0'
-    expired_keys = [f'test_{index}' for index in range(1, 55)]
-    all_keys = [non_expired_key, *expired_keys]
+    value, ttl = -100.0, 50
+    expired_keys = {
+        f'test_{index}': cached_value_type for index in range(1, 55)
+    }
+    all_keys = expired_keys | {non_expired_key: cached_value_type}
 
-    cache_instance.set(non_expired_key, CachedValue(cached_value.value))
+    cache_instance.set(non_expired_key, cached_value_type(value))
     cache_instance.set_many(
-        {key: cached_value.value
-         for key in expired_keys}, cached_value.ttl
+        {key: type_(value) for key, type_ in expired_keys.items()}, ttl
     )
 
     with freeze_time(next_year):
@@ -153,24 +145,25 @@ def test_get_set_many_partial(cache_instance, cached_value, next_year):
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_invalidate(cache_instance, cached_value, cached_value_type):
+def test_invalidate(cache_instance, cached_value_type):
     key = 'test'
 
-    cache_instance.set(key, cached_value.value, cached_value_type)
+    cache_instance.set(key, cached_value_type(1.0))
     cache_instance.invalidate(key)
 
     assert cache_instance.get(key, cached_value_type) is None
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
-def test_invalidate_all(cache_instance, cached_value):
-    keys = [f'test_{index}' for index in range(5)]
-    expected = {key: cached_value.value for key in keys}
+def test_invalidate_all(cache_instance, cached_value_type):
+    elements = {f'test_{index}': cached_value_type for index in range(5)}
+    value, ttl = 1.0, 60
+    expected = {key: type_(value) for key, type_ in elements.items()}
 
-    cache_instance.set_many(expected, cached_value.ttl)
+    cache_instance.set_many(expected, ttl)
     cache_instance.invalidate_all()
 
-    assert not cache_instance.get_many(keys)
+    assert not cache_instance.get_many(elements)
 
 
 @pytest.mark.parametrize(

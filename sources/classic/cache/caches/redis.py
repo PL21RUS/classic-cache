@@ -1,12 +1,11 @@
 from dataclasses import field
-from typing import Any, Mapping, Sequence, Hashable
+from typing import Any, Mapping, Hashable, Type
 
 import redis
 
 from classic.components import component
 
-from ..cache import Cache
-from ..value import CachedValue
+from ..cache import Cache, CachedValueType
 from ..key_generators import Blake2b
 
 
@@ -22,7 +21,7 @@ class RedisCache(Cache):
         self,
         connection: redis.Redis | redis.client.Pipeline,
         key: Hashable,
-        cached_value: Any,
+        cached_value: CachedValueType,
         ttl: int | None = None,
     ) -> None:
         """
@@ -46,16 +45,14 @@ class RedisCache(Cache):
     def set(
         self,
         key: Hashable,
-        value: Any,
-        type_,
+        cached_value: CachedValueType,
         ttl: int | None = None,
     ) -> None:
-        cached_value = type_(value, ttl=ttl)
         self._save_value(self.connection, key, cached_value, ttl)
 
     def set_many(
         self,
-        elements: Mapping[Hashable, Any],
+        elements: Mapping[Hashable, CachedValueType],
         ttl: int | None = None,
     ) -> None:
         # Используем механизм pipeline для ускорения процесса записи
@@ -68,16 +65,16 @@ class RedisCache(Cache):
 
         pipe.execute()
 
-    def get(self, key: Hashable, type_) -> CachedValue | None:
+    def get(self, key: Hashable, cast_to: Type) -> CachedValueType | None:
         encoded_key = self._serialize(key)
         _value = self.connection.get(encoded_key)
 
         if not _value:
             return None
         else:
-            return self._deserialize(_value, type_)
+            return self._deserialize(_value, cast_to)
 
-    def get_many(self, keys: Sequence[Hashable]) -> Mapping[Hashable, Any]:
+    def get_many(self, keys: dict[Hashable, Type]) -> Mapping[Hashable, Any]:
         encoded_keys = [self._serialize(key) for key in keys]
         decoded_values = self.connection.mget(encoded_keys)
 
@@ -86,8 +83,8 @@ class RedisCache(Cache):
         # Дополнительно фильтруем ключ-значение, если оно исчезло
         # из Redis'а по какой-то причине
         return {
-            key: self._deserialize(decoded_value)
-            for key, decoded_value in zip(keys, decoded_values)
+            key: self._deserialize(decoded_value, cast_to)
+            for (key, cast_to), decoded_value in zip(keys.items(), decoded_values)
             if decoded_value
         }
 

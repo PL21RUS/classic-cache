@@ -26,6 +26,7 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
     def inner(func: Callable):
 
         def wrapper(*args, **kwargs):
+            nonlocal CachedValue
             class_self = args[0]
             cache_instance: Cache = getattr(class_self, '__cache__')
 
@@ -34,25 +35,27 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
                 func, *args[1:], **kwargs
             )
 
-            return_type = func.__annotations__['return']
-            CachedValue = msgspec.defstruct(
-                'CachedValue',
-                [
-                    ('value', return_type),
-                    ('ttl', int | None, None),
-                    ('created', float, msgspec.field(default_factory=time.monotonic)),
-                ]
-            )
-
             cached_result = cache_instance.get(function_key, CachedValue)
 
             if cached_result:
                 return cached_result.value
             else:
                 result = func(*args, **kwargs)
-                cache_instance.set(function_key, result, CachedValue, ttl)
+                cache_instance.set(
+                    function_key, CachedValue(result, ttl=ttl), ttl
+                )
 
                 return result
+
+        CachedValue = msgspec.defstruct(
+            'CachedValue',
+            [
+                ('value', func.__annotations__['return']),
+                ('ttl', int | None, None),
+                ('created', float,
+                 msgspec.field(default_factory=time.monotonic)),
+            ]
+        )
 
         wrapper = functools.update_wrapper(wrapper, func)
         wrapper = add_extra_annotation(wrapper, '__cache__', Cache)

@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Mapping, Sequence, Any, Hashable
+from typing import Mapping, Any, Hashable, TypeVar, Type
 
 import msgspec
 
 from .key_generator import FuncKeyCreator
-from .value import CachedValue
+
+CachedValueType = TypeVar('CachedValueType')
 
 
 class Cache(ABC):
@@ -20,21 +21,21 @@ class Cache(ABC):
     def _serialize(self, element: Any) -> bytes:
         return msgspec.json.encode(element)
 
-    def _deserialize(self, element: bytes, type_) -> Any:
-        return msgspec.json.decode(element, type=type_)
+    def _deserialize(self, element: bytes, cast_to: Any) -> Any:
+        return msgspec.json.decode(element, type=cast_to)
 
     @abstractmethod
     def set(
         self,
         key: Hashable,
-        value: Any,
-        type_,
-        ttl: int | None = None
+        cached_value: CachedValueType,
+        ttl: int | None = None,
     ) -> None:
         """
         Сохранение элемента `element` в кэше
         :param key: ключ доступа к элементу
-        :param value: значение элемента
+        :param cached_value: значение элемента упакованное в структуру
+         `CachedValue`
         :param ttl: время "жизни"
             (как долго элемент может находиться в кэше)
         """
@@ -43,30 +44,32 @@ class Cache(ABC):
     @abstractmethod
     def set_many(
         self,
-        elements: Mapping[Hashable, Any],
+        elements: Mapping[Hashable, CachedValueType],
         ttl: int | None = None
     ) -> None:
         """
         Сохранение множества элементов `elements` в кэше
         :param elements: ключи доступа и значения элементов
+        упакованное в структуру `CachedValue`
         :param ttl: время "жизни"
             (как долго элемент может находиться в кэше)
         """
 
     @abstractmethod
-    def get(self, key: Hashable, type_) -> CachedValue | None:
+    def get(self, key: Hashable, cast_to: Type) -> CachedValueType | None:
         """
         Получение сохраненного элемента из кэша
         :param key: ключ доступа к элементу
+        :param cast_to: тип элемента
         :return: Элемент, если он существует и не просрочен, иначе `None`
         """
         ...
 
     @abstractmethod
-    def get_many(self, keys: Sequence[Hashable]) -> Mapping[Hashable, Any]:
+    def get_many(self, keys: dict[Hashable, Type]) -> Mapping[Hashable, Any]:
         """
         Получение множества сохраненных элементов из кэша
-        :param keys: ключи доступа к элементам
+        :param keys: маппинг ключ доступа к элементу на тип элемента
         :return: Словарь ключей и элементов,
             которые существуют в кэше и не являются просроченными
         """
