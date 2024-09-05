@@ -40,7 +40,8 @@ class B(A):
 generators = [
     key_generators.PureHash(),
     key_generators.Blake2b(),
-    key_generators.OrJson()
+    key_generators.OrJson(),
+    key_generators.MsgSpec(),
 ]
 
 
