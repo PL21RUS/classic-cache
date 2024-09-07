@@ -1,11 +1,26 @@
+import time
 from abc import ABC, abstractmethod
-from typing import Mapping, Any, Hashable, TypeVar, Type
+from typing import Mapping, Any, Hashable, TypeVar, Type, Generic
 
 import msgspec
 
 from .key_generator import FuncKeyCreator
 
 CachedValueType = TypeVar('CachedValueType')
+
+
+class CachedValue(Generic[CachedValueType], msgspec.Struct):
+    """
+    Хранимое значение в кэше с дополнительной метаинформацией
+    """
+    value: CachedValueType
+    """Значение элемента из кэша"""
+
+    ttl: int | None = None
+    """Время "жизни" элемента в кэше (секунды), None - "живет" бесконечно"""
+
+    created: float = msgspec.field(default_factory=time.monotonic)
+    """Время создания элемента"""
 
 
 class Cache(ABC):

@@ -17,13 +17,13 @@ class PureHash(FuncKeyCreator):
         assert all(isinstance(arg, Hashable) for arg in args)
         assert all(isinstance(value, Hashable) for value in kwargs.values())
 
-        kwargs = {key: kwargs[key] for key in sorted(kwargs.keys())}
+        kwargs = tuple(sorted(kwargs.items()))
 
         if args and kwargs:
-            tuple_creation = args + tuple(kwargs.items())
+            tuple_creation = args + kwargs
         elif args:
             tuple_creation = args
         else:
-            tuple_creation = tuple(kwargs.items())
+            tuple_creation = kwargs
 
         return hash(tuple_creation) if args or kwargs else None

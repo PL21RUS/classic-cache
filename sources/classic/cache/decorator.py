@@ -1,14 +1,11 @@
-import time
 import functools
 from datetime import timedelta
 from typing import Callable
 
-import msgspec
-
 from classic.components import add_extra_annotation
 from classic.components.types import Decorator
 
-from .cache import Cache
+from .cache import Cache, CachedValue
 
 
 # @cache(ttl=timedelta(hours=1)) (пример использования)
@@ -26,7 +23,6 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
     def inner(func: Callable):
 
         def wrapper(*args, **kwargs):
-            nonlocal CachedValue
             class_self = args[0]
             cache_instance: Cache = getattr(class_self, '__cache__')
 
@@ -35,7 +31,9 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
                 func, *args[1:], **kwargs
             )
 
-            cached_result = cache_instance.get(function_key, CachedValue)
+            cached_result = cache_instance.get(
+                function_key, CachedValue[func.__annotations__['return']]
+            )
 
             if cached_result:
                 return cached_result.value
@@ -46,16 +44,6 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
                 )
 
                 return result
-
-        CachedValue = msgspec.defstruct(
-            'CachedValue',
-            [
-                ('value', func.__annotations__['return']),
-                ('ttl', int | None, None),
-                ('created', float,
-                 msgspec.field(default_factory=time.monotonic)),
-            ]
-        )
 
         wrapper = functools.update_wrapper(wrapper, func)
         wrapper = add_extra_annotation(wrapper, '__cache__', Cache)

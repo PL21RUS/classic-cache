@@ -4,7 +4,7 @@ from typing import Any, Mapping, Hashable, Type
 from classic.components import component
 
 from ..cache import Cache, CachedValueType
-from ..key_generators import Blake2b
+from ..key_generators import PureHash
 
 
 @component
@@ -12,7 +12,7 @@ class InMemoryCache(Cache):
     """
     In-memory реализация кэширования
     """
-    key_function = Blake2b()
+    key_function = PureHash()
 
     def __init__(self):
         self.cache = {}
