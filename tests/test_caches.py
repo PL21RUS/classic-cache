@@ -1,8 +1,14 @@
+try:
+    from fakeredis import FakeRedis
+    redis_installed = True
+except ImportError:
+    FakeRedis = type('FakeRedis', (), {})
+    redis_installed = False
+
 from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
-from fakeredis import FakeRedis
 from freezegun import freeze_time
 
 from classic.cache import Cache, CachedValue
@@ -17,6 +23,9 @@ class FrozenDataclass:
 
 # реализации кэширования (дополняем при необходимости)
 @pytest.fixture(scope='function')
+@pytest.mark.skipif(
+    not redis_installed, reason='redis package is not installed'
+)
 def redis_cache():
     return RedisCache(connection=FakeRedis())
 
@@ -27,7 +36,9 @@ def in_memory_cache():
 
 
 # ссылки на экземпляров реализации кэшей (используем название фикстуры)
-cache_instances = ('redis_cache', 'in_memory_cache')
+cache_instances = ['in_memory_cache']
+if redis_installed:
+    cache_instances.append('redis_cache')
 
 
 # параметизированный экземпляр кэша (request.param - фикстура с реализацией)

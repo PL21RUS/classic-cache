@@ -1,7 +1,13 @@
 from dataclasses import field
 from typing import Any, Mapping, Hashable, Type
 
-import redis
+try:
+    from redis import Redis
+    from redis.client import Pipeline as RedisPipeline
+    redis_installed = True
+except ImportError:
+    Redis = RedisPipeline = Type
+    redis_installed = False
 
 from classic.components import component
 
@@ -14,12 +20,18 @@ class RedisCache(Cache):
     """
     Redis-реализация кэширования (TTL without history)
     """
-    connection: redis.Redis
+    connection: Redis
     key_function = field(default_factory=Blake2b)
+
+    def __post_init__(self):
+        if not redis_installed:
+            raise ImportError(
+                'RedisCache requires "redis" package to be installed'
+            )
 
     def _save_value(
         self,
-        connection: redis.Redis | redis.client.Pipeline,
+        connection: Redis | RedisPipeline,
         key: Hashable,
         value: CachedValueType,
         ttl: int | None = None,
