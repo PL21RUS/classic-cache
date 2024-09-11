@@ -1,11 +1,66 @@
 import functools
+import types
 from datetime import timedelta
-from typing import Callable
+from dataclasses import dataclass
+from typing import Callable, Type
+import inspect
 
 from classic.components import add_extra_annotation
 from classic.components.types import Decorator
 
-from .cache import Cache, CachedValue
+from .cache import Cache
+
+
+@dataclass
+class BoundedWrapper:
+    cache: Cache
+    instance: object
+    func: Callable
+    return_type: Type[object]
+    ttl: int | None = None
+
+    def __call__(self, *args, **kwargs):
+        fn_key = self.cache.key_function(self.func, *args, **kwargs)
+        cached, found = self.cache.get(fn_key, self.return_type)
+        if found:
+            return cached
+
+        result = self.func(self.instance, *args, **kwargs)
+
+        self.cache.set(fn_key, result, self.ttl)
+
+        return result
+
+    def invalidate(self, *args, **kwargs):
+        fn_key = self.cache.key_function(self.func, *args, **kwargs)
+        self.cache.invalidate(fn_key)
+
+    def refresh(self, *args, **kwargs):
+        fn_key = self.cache.key_function(self.func, *args, **kwargs)
+        result = self.func(self.instance, *args, **kwargs)
+        self.cache.set(fn_key, result, self.ttl)
+
+    def refresh_if_exists(self, *args, **kwargs):
+        fn_key = self.cache.key_function(self.func, *args, **kwargs)
+        found = self.cache.exists(fn_key)
+        if found:
+            result = self.func(*args, **kwargs)
+            self.cache.set(fn_key, result, self.ttl)
+
+
+@dataclass
+class Wrapper:
+    func: Callable
+    return_type: Type[object]
+    ttl: int | None = None
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+        return BoundedWrapper(
+            instance.cache_, instance, self.func, self.return_type, self.ttl
+        )
 
 
 # @cache(ttl=timedelta(hours=1)) (пример использования)
@@ -22,31 +77,21 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
 
     def inner(func: Callable):
 
-        def wrapper(*args, **kwargs):
-            class_self = args[0]
-            cache_instance: Cache = getattr(class_self, '__cache__')
+        return_type = inspect.signature(func).return_annotation
+        assert return_type != inspect.Signature.empty, (
+            'Необходимо указать аннотацию возвращаемого значения функции'
+        )
 
-            # исключаем self из arg'ов
-            function_key = cache_instance.key_function(
-                func, *args[1:], **kwargs
-            )
+        wrapper = Wrapper(func, return_type, ttl)
 
-            cached_result = cache_instance.get(
-                function_key, CachedValue[func.__annotations__['return']]
-            )
-
-            if cached_result:
-                return cached_result.value
-            else:
-                result = func(*args, **kwargs)
-                cache_instance.set(
-                    function_key, CachedValue(result, ttl=ttl), ttl
-                )
-
-                return result
-
-        wrapper = functools.update_wrapper(wrapper, func)
-        wrapper = add_extra_annotation(wrapper, '__cache__', Cache)
+        # wrapper = functools.update_wrapper(wrapper, func)
+        # wrapper = add_extra_annotation(wrapper, 'cache_', Cache)
+        setattr(wrapper, '__extra_annotations__', {'cache_': Cache})
+        is_func = inspect.isfunction(wrapper)
+        have_method = hasattr(wrapper, '__extra_annotations__')
+        # wrapper.__extra_annotations__['cache_'] = Cache
+        # TODO: wrapper.invalidate = invalidate
+        # TODO: wrapper.refresh = refresh
 
         return wrapper
 

@@ -1,9 +1,9 @@
 import time
-from typing import Any, Mapping, Hashable, Type
+from typing import Mapping, Type
 
 from classic.components import component
 
-from ..cache import Cache, CachedValueType
+from ..cache import Cache, CachedValue, Key, Value, Result
 from ..key_generators import PureHash
 
 
@@ -19,8 +19,8 @@ class InMemoryCache(Cache):
 
     def _save_value(
         self,
-        key: Hashable,
-        cached_value: CachedValueType,
+        key: Key,
+        cached_value: CachedValue,
         ttl: int | None = None,
     ) -> None:
         self.cache[key] = (
@@ -29,33 +29,42 @@ class InMemoryCache(Cache):
 
     def set(
         self,
-        key: Hashable,
-        cached_value: CachedValueType,
+        key: Key,
+        value: Value,
         ttl: int | None = None,
     ) -> None:
+        cached_value = CachedValue(value, ttl=ttl)
         self._save_value(key, cached_value, ttl)
 
     def set_many(
         self,
-        elements: Mapping[Hashable, CachedValueType],
-        ttl: int | None = None,
+        elements: Mapping[Key, Value],
+        ttl: int | None = None
     ) -> None:
         for key, value in elements.items():
-            self._save_value(key, value, ttl)
+            cached_value = CachedValue[Value](value, ttl=ttl)
+            self._save_value(key, cached_value, ttl)
 
-    def get(self, key: Hashable, cast_to: Type) -> CachedValueType | None:
+    def exists(self, key: Key) -> bool:
+        if key in self.cache:
+            expiry, _ = self.cache[key]
+            # TODO: в каких случаях возвращать True?
+            return expiry is None or time.monotonic() < expiry
+        return False
+
+    def get(self, key: Key, cast_to: Type[Value]) -> Result:
         if key in self.cache:
             expiry, value = self.cache[key]
             if expiry is None or time.monotonic() < expiry:
-                return value
+                return value, True
             else:
                 del self.cache[key]
-        return None
+        return None, False
 
-    def get_many(self, keys: dict[Hashable, Type]) -> Mapping[Hashable, Any]:
+    def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         return {key: self.get(key, cast_to) for key, cast_to in keys.items()}
 
-    def invalidate(self, key: Hashable) -> None:
+    def invalidate(self, key: Key) -> None:
         self.cache.pop(key, None)
 
     def invalidate_all(self) -> None:

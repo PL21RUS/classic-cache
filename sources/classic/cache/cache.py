@@ -6,14 +6,19 @@ import msgspec
 
 from .key_generator import FuncKeyCreator
 
-CachedValueType = TypeVar('CachedValueType')
+Key = TypeVar('Key', bound=Hashable)
+Value = TypeVar('Value', bound=object)
+Result = tuple[Value, bool]
 
 
-class CachedValue(Generic[CachedValueType], msgspec.Struct):
+# TODO: пробрасывать версию прилождения и добавить проверку с удалением
+#  (если версия не бъется с текущей)
+# TODO: проверить с array-like (array_like=True)
+class CachedValue(Generic[Value], msgspec.Struct):
     """
     Хранимое значение в кэше с дополнительной метаинформацией
     """
-    value: CachedValueType
+    value: Value
     """Значение элемента из кэша"""
 
     ttl: int | None = None
@@ -21,6 +26,9 @@ class CachedValue(Generic[CachedValueType], msgspec.Struct):
 
     created: float = msgspec.field(default_factory=time.monotonic)
     """Время создания элемента"""
+
+    version: int | None = None
+    """Версия элемента"""
 
 
 class Cache(ABC):
@@ -32,6 +40,7 @@ class Cache(ABC):
     """
     Реализация хэширования функции и ее аргументов
     """
+    version: int | None = None
 
     def _serialize(self, element: Any) -> bytes:
         return msgspec.json.encode(element)
@@ -44,8 +53,8 @@ class Cache(ABC):
     @abstractmethod
     def set(
         self,
-        key: Hashable,
-        cached_value: CachedValueType,
+        key: Key,
+        value: Value,
         ttl: int | None = None,
     ) -> None:
         """
@@ -61,7 +70,7 @@ class Cache(ABC):
     @abstractmethod
     def set_many(
         self,
-        elements: Mapping[Hashable, CachedValueType],
+        elements: Mapping[Key, Value],
         ttl: int | None = None
     ) -> None:
         """
@@ -73,7 +82,16 @@ class Cache(ABC):
         """
 
     @abstractmethod
-    def get(self, key: Hashable, cast_to: Type) -> CachedValueType | None:
+    def exists(self, key: Key) -> bool:
+        """
+        Проверка наличия элемента в кэше
+        :param key: ключ доступа к элементу
+        :return: `True`, если элемент существует и не просрочен, иначе `False`
+        """
+        ...
+
+    @abstractmethod
+    def get(self, key: Key, cast_to: Type[Value]) -> Result:
         """
         Получение сохраненного элемента из кэша
         :param key: ключ доступа к элементу
@@ -83,7 +101,7 @@ class Cache(ABC):
         ...
 
     @abstractmethod
-    def get_many(self, keys: dict[Hashable, Type]) -> Mapping[Hashable, Any]:
+    def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         """
         Получение множества сохраненных элементов из кэша
         :param keys: маппинг ключ доступа к элементу на тип элемента
@@ -92,7 +110,7 @@ class Cache(ABC):
         """
 
     @abstractmethod
-    def invalidate(self, key: Hashable) -> None:
+    def invalidate(self, key: Key) -> None:
         """
         Удаление элемента из кэша
         :param key: ключ доступа к элементу

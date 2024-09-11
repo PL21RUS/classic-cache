@@ -122,7 +122,7 @@ def test_classmethods(generator):
 # specific key generators
 @pytest.mark.parametrize('generator', [key_generators.PureHash()])
 def test_non_hashable_structures(generator):
-    with pytest.raises(AssertionError):
+    with pytest.raises((AssertionError, TypeError)):
         generator(optional_kwargs_function, {'optional_arg': {'a': 1, 'b': 2}})
 
 
@@ -132,7 +132,7 @@ def test_key_generator_performance(generator):
     timer = timeit.Timer(lambda: generator(args_function, 1, 2))
 
     # измеряем время выполнения
-    num_trials = 10000
+    num_trials = 100000
     elapsed_time = timer.timeit(num_trials)
 
     logger.info(

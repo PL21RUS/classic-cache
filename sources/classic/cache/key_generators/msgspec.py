@@ -12,7 +12,9 @@ class MsgSpec(FuncKeyCreator):
         if not (args or kwargs):
             return None
 
-        kwargs = dict(sorted(kwargs.items()))
-        arguments = [*args, *kwargs.items()]
+        kwargs = sorted(kwargs.items())
+        arguments = (*args, *kwargs)
 
+        # TODO: попробовать убрать декод, если нужен только Редису,
+        #  то перенести в Редис
         return msgspec.json.encode(arguments).decode('utf8')

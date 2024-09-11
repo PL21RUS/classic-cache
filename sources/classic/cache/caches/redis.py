@@ -1,5 +1,5 @@
 from dataclasses import field
-from typing import Any, Mapping, Hashable, Type
+from typing import Mapping, Type
 
 try:
     from redis import Redis
@@ -11,7 +11,7 @@ except ImportError:
 
 from classic.components import component
 
-from ..cache import Cache, CachedValueType
+from ..cache import Cache, Value, CachedValue, Key, Result
 from ..key_generators import Blake2b
 
 
@@ -32,8 +32,8 @@ class RedisCache(Cache):
     def _save_value(
         self,
         connection: Redis | RedisPipeline,
-        key: Hashable,
-        value: CachedValueType,
+        key: Key,
+        value: CachedValue,
         ttl: int | None = None,
     ) -> None:
         """
@@ -56,16 +56,17 @@ class RedisCache(Cache):
 
     def set(
         self,
-        key: Hashable,
-        cached_value: CachedValueType,
+        key: Key,
+        value: Value,
         ttl: int | None = None,
     ) -> None:
+        cached_value = CachedValue[Value](value, ttl=ttl)
         self._save_value(self.connection, key, cached_value, ttl)
 
     def set_many(
         self,
-        elements: Mapping[Hashable, CachedValueType],
-        ttl: int | None = None,
+        elements: Mapping[Key, Value],
+        ttl: int | None = None
     ) -> None:
         # Используем механизм pipeline для ускорения процесса записи
         # https://redis.io/docs/manual/pipelining/
@@ -73,20 +74,26 @@ class RedisCache(Cache):
         pipe = self.connection.pipeline()
 
         for key, value in elements.items():
-            self._save_value(pipe, key, value, ttl)
+            cached_value = CachedValue[Value](value, ttl=ttl)
+            self._save_value(pipe, key, cached_value, ttl)
 
         pipe.execute()
 
-    def get(self, key: Hashable, cast_to: Type) -> CachedValueType | None:
+    def exists(self, key: Key) -> bool:
+        return self.connection.exists(self._serialize(key))
+
+    def get(self, key: Key, cast_to: Type[Value]) -> Result:
         encoded_key = self._serialize(key)
+        # TODO: редис возвращает None, если ключа нет.
+        #  Как отличить от значения None?
         _value = self.connection.get(encoded_key)
 
-        if not _value:
-            return None
-        else:
-            return self._deserialize(_value, cast_to)
+        return (
+            self._deserialize(_value, CachedValue[cast_to]),
+            _value is not None
+        )
 
-    def get_many(self, keys: dict[Hashable, Type]) -> Mapping[Hashable, Any]:
+    def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         encoded_keys = [self._serialize(key) for key in keys]
         decoded_values = self.connection.mget(encoded_keys)
 
@@ -95,15 +102,17 @@ class RedisCache(Cache):
         # Дополнительно фильтруем ключ-значение, если оно исчезло
         # из Redis'а по какой-то причине
         return {
-            key: self._deserialize(decoded_value, cast_to)
+            key: (
+                self._deserialize(decoded_value, CachedValue[cast_to]),
+                decoded_value is not None
+            )
             for (key, cast_to), decoded_value in zip(
                 keys.items(), decoded_values
             )
         }
 
-    def invalidate(self, key: Hashable) -> None:
+    def invalidate(self, key: Key) -> None:
         encoded_key = self._serialize(key)
-
         # Можем вызывать as is, т.к. несуществующие ключи будут проигнорированы
         self.connection.delete(encoded_key)
 
