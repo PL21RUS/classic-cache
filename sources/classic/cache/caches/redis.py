@@ -23,7 +23,7 @@ class RedisCache(Cache):
     Redis-реализация кэширования (TTL without history)
     """
     connection: Redis
-    version: str
+    version: str | None = None
     key_function = field(default_factory=Blake2b)
 
     def __post_init__(self):
@@ -111,9 +111,14 @@ class RedisCache(Cache):
             if value is None:
                 result[key] = None, False
             else:
-                result[key] = (
-                    self._deserialize(value, CachedValue[cast_to])[0], True
+                value, _, _, version = self._deserialize(
+                    value, CachedValue[cast_to]
                 )
+                if version == self.version:
+                    result[key] = value, True
+                else:
+                    result[key] = None, False
+                    self.invalidate(key)
         return result
 
     def invalidate(self, key: Key) -> None:
