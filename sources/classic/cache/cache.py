@@ -1,6 +1,5 @@
-import time
 from abc import ABC, abstractmethod
-from typing import Mapping, Any, Hashable, TypeVar, Type, Generic
+from typing import Mapping, Any, Hashable, TypeVar, Type
 
 import msgspec
 
@@ -9,26 +8,7 @@ from .key_generator import FuncKeyCreator
 Key = TypeVar('Key', bound=Hashable)
 Value = TypeVar('Value', bound=object)
 Result = tuple[Value, bool]
-
-
-# TODO: пробрасывать версию прилождения и добавить проверку с удалением
-#  (если версия не бъется с текущей)
-# TODO: сделать на тюплах, убрать ttl (для редиса не нужен)
-class CachedValue(Generic[Value], msgspec.Struct, array_like=True):
-    """
-    Хранимое значение в кэше с дополнительной метаинформацией
-    """
-    value: Value
-    """Значение элемента из кэша"""
-
-    ttl: int | None = None
-    """Время "жизни" элемента в кэше (секунды), None - "живет" бесконечно"""
-
-    created: float = msgspec.field(default_factory=time.monotonic)
-    """Время создания элемента"""
-
-    version: int | None = None
-    """Версия элемента"""
+CachedValue = tuple[Value, int | None, float, str | None]
 
 
 class Cache(ABC):

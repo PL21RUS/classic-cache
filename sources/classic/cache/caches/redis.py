@@ -1,3 +1,5 @@
+import time
+
 from dataclasses import field
 from typing import Mapping, Type
 
@@ -11,7 +13,7 @@ except ImportError:
 
 from classic.components import component
 
-from ..cache import Cache, Value, CachedValue, Key, Result
+from ..cache import Cache, Value, Key, Result, CachedValue
 from ..key_generators import Blake2b
 
 
@@ -21,6 +23,7 @@ class RedisCache(Cache):
     Redis-реализация кэширования (TTL without history)
     """
     connection: Redis
+    version: str
     key_function = field(default_factory=Blake2b)
 
     def __post_init__(self):
@@ -60,7 +63,7 @@ class RedisCache(Cache):
         value: Value,
         ttl: int | None = None,
     ) -> None:
-        cached_value = CachedValue[Value](value, ttl=ttl)
+        cached_value = (value, ttl, time.monotonic(), self.version)
         self._save_value(self.connection, key, cached_value, ttl)
 
     def set_many(
@@ -74,7 +77,7 @@ class RedisCache(Cache):
         pipe = self.connection.pipeline()
 
         for key, value in elements.items():
-            cached_value = CachedValue[Value](value, ttl=ttl)
+            cached_value = (value, ttl, time.monotonic(), self.version)
             self._save_value(pipe, key, cached_value, ttl)
 
         pipe.execute()
@@ -82,7 +85,6 @@ class RedisCache(Cache):
     def exists(self, key: Key) -> bool:
         return self.connection.exists(self._serialize(key))
 
-    # TODO: возвращать value, а не CachedValue
     def get(self, key: Key, cast_to: Type[Value]) -> Result:
         encoded_key = self._serialize(key)
         # TODO: редис возвращает None, если ключа нет.
@@ -93,7 +95,7 @@ class RedisCache(Cache):
             return None, False
 
         return (
-            self._deserialize(_value, CachedValue[cast_to]).value, True
+            self._deserialize(_value, CachedValue[cast_to])[0], True
         )
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
@@ -110,7 +112,7 @@ class RedisCache(Cache):
                 result[key] = None, False
             else:
                 result[key] = (
-                    self._deserialize(value, CachedValue[cast_to]).value, True
+                    self._deserialize(value, CachedValue[cast_to])[0], True
                 )
         return result
 

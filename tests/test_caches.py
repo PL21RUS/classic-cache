@@ -12,7 +12,6 @@ import pytest
 from freezegun import freeze_time
 
 from classic.cache import Cache
-from classic.cache.cache import CachedValue
 from classic.cache.caches import RedisCache, InMemoryCache
 
 

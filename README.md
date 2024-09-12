@@ -12,6 +12,12 @@ Classic Cache - предоставляет функциональность ке
 pip install classic-cache
 ```
 
+Для установки Classic-Cache с поддержкой Redis:
+
+```bash
+pip install classic-cache[redis]
+```
+
 ## Использование
 
 Вот несколько примеров использования Classic-Cache.
@@ -19,41 +25,22 @@ pip install classic-cache
 ### Кэширование в памяти
 
 ```python
-from classic.cache import cached, InMemoryCache
+from classic.cache import cached, InMemoryCache, RedisCache
 from classic.components import component
 
 @component
 class SomeClass:
 
+    # Кэширование результата метода some_method на 60 секунд
     @cached(ttl=60)
     def some_method(self, arg1: int, arg2: int) -> int:
         return arg1 + arg2
 
+# кеширование в памяти
 some_instance = SomeClass(cache=InMemoryCache())
-```
-
-В этом примере результаты `some_method` будут кэшироваться в течение 60 секунд. 
-Кэш хранится в памяти.
-
-### Кэширование в Redis
-
-```python
-from classic.cache import cached, RedisCache
-from classic.components import component
-from redis import Redis
-
-@component
-class SomeClass:
-
-    @cached(ttl=60)
-    def some_method(self, arg1: int, arg2: int) -> int:
-        return arg1 + arg2
-
+# кеширование в Redis
 some_instance = SomeClass(cache=RedisCache(connection=Redis()))
 ```
-
-В этом примере результаты `some_method` будут кэшироваться в течение 60 секунд. 
-Кэш хранится в Redis.
 
 ### Инвалидация кэша
 
@@ -76,11 +63,3 @@ some_instance.some_method.refresh(1, 2)
 ```
 
 Это обновит кэшированный результат для `some_method` с аргументами `1` и `2`.
-
-## Вклад в проект
-
-Вклады приветствуются! Пожалуйста, не стесняйтесь отправлять запрос на слияние.
-
-## Лицензия
-
-Classic-Cache лицензирована по лицензии MIT.

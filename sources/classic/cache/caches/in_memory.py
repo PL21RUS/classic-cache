@@ -3,7 +3,7 @@ from typing import Mapping, Type
 
 from classic.components import component
 
-from ..cache import Cache, CachedValue, Key, Value, Result
+from ..cache import Cache, Key, Value, Result
 from ..key_generators import PureHash
 
 
@@ -23,10 +23,7 @@ class InMemoryCache(Cache):
         value: Value,
         ttl: int | None = None,
     ) -> None:
-        cached_value = CachedValue(value, ttl=ttl)
-        self.cache[key] = (
-            time.monotonic() + ttl if ttl else None, cached_value
-        )
+        self.cache[key] = (time.monotonic() + ttl if ttl else None, value)
 
     def set_many(
         self,
@@ -53,7 +50,7 @@ class InMemoryCache(Cache):
         if expiry is not None and time.monotonic() >= expiry:
             return None, False
 
-        return cached_value.value, True
+        return cached_value, True
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         return {key: self.get(key, cast_to) for key, cast_to in keys.items()}
