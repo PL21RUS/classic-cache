@@ -88,7 +88,7 @@ class RedisCache(Cache):
     def get(self, key: Key, cast_to: Type[Value]) -> Result:
         encoded_key = self._serialize(key)
         # TODO: редис возвращает None, если ключа нет.
-        #  Как отличить от значения None?
+        #  Как отличить от значения None? Сделать объект Empty tagged=True
         _value = self.connection.get(encoded_key)
 
         if _value is None:

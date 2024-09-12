@@ -7,6 +7,7 @@ from ..cache import Cache, Key, Value, Result
 from ..key_generators import PureHash
 
 
+# TODO: добавить сериализатор
 @component
 class InMemoryCache(Cache):
     """
@@ -23,7 +24,9 @@ class InMemoryCache(Cache):
         value: Value,
         ttl: int | None = None,
     ) -> None:
-        self.cache[key] = (time.monotonic() + ttl if ttl else None, value)
+        self.cache[key] =(
+            time.monotonic() + ttl if ttl else None, self._serialize(value)
+        )
 
     def set_many(
         self,
@@ -50,7 +53,7 @@ class InMemoryCache(Cache):
         if expiry is not None and time.monotonic() >= expiry:
             return None, False
 
-        return cached_value, True
+        return self._deserialize(cached_value, cast_to), True
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         return {key: self.get(key, cast_to) for key, cast_to in keys.items()}
