@@ -94,9 +94,13 @@ class RedisCache(Cache):
         if _value is None:
             return None, False
 
-        return (
-            self._deserialize(_value, CachedValue[cast_to])[0], True
-        )
+        value, _, _, version = self._deserialize(_value, CachedValue[cast_to])
+
+        if version != self.version:
+            self.invalidate(key)
+            return None, False
+
+        return value, True
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         encoded_keys = [self._serialize(key) for key in keys]
@@ -107,12 +111,12 @@ class RedisCache(Cache):
         # Дополнительно фильтруем ключ-значение, если оно исчезло
         # из Redis'а по какой-то причине
         result = {}
-        for (key, cast_to), value in zip(keys.items(), decoded_values):
-            if value is None:
+        for (key, cast_to), _value in zip(keys.items(), decoded_values):
+            if _value is None:
                 result[key] = None, False
             else:
                 value, _, _, version = self._deserialize(
-                    value, CachedValue[cast_to]
+                    _value, CachedValue[cast_to]
                 )
                 if version == self.version:
                     result[key] = value, True
