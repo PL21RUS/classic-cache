@@ -7,7 +7,7 @@ except ImportError:
 
 import pytest
 
-from classic.cache import cache, Cache
+from classic.cache import cached, Cache
 from classic.components import component
 
 from classic.cache.caches import RedisCache, InMemoryCache
@@ -15,10 +15,8 @@ from classic.cache.caches import RedisCache, InMemoryCache
 
 @component
 class SomeClass:
-    a: int
-    # cache_: Cache
 
-    @cache(ttl=60)
+    @cached(ttl=60)
     def some_method(self, arg1: int, arg2: int) -> int:
         return arg1 + arg2
 
@@ -51,7 +49,7 @@ def cache_instance(request) -> Cache:
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
 def test_invalidate(cache_instance):
-    some_instance = SomeClass(cache_=cache_instance)
+    some_instance = SomeClass(cache=cache_instance)
     some_instance.some_method(1, 2)
 
     fn_key = cache_instance.key_function(SomeClass.some_method, 1, 2)
@@ -65,7 +63,7 @@ def test_invalidate(cache_instance):
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
 def test_refresh(cache_instance):
-    some_instance = SomeClass(cache_=cache_instance)
+    some_instance = SomeClass(cache=cache_instance)
     some_instance.some_method.refresh(1, 2)
 
     fn_key = cache_instance.key_function(SomeClass.some_method, 1, 2)

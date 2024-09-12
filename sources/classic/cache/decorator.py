@@ -1,5 +1,4 @@
 import functools
-import types
 from datetime import timedelta
 from dataclasses import dataclass
 from typing import Callable, Type
@@ -52,6 +51,7 @@ class BoundedWrapper:
 class Wrapper:
     func: Callable
     return_type: Type[object]
+    attr: str
     ttl: int | None = None
 
     def __get__(self, instance, owner):
@@ -59,13 +59,16 @@ class Wrapper:
             return self
 
         return BoundedWrapper(
-            instance.cache_, instance, self.func, self.return_type, self.ttl
+            getattr(instance, self.attr),
+            instance,
+            self.func,
+            self.return_type,
+            self.ttl,
         )
 
 
-# @cache(ttl=timedelta(hours=1)) (пример использования)
-
-def cache(ttl: int | timedelta | None = None) -> Decorator:
+# @cached(ttl=timedelta(hours=1)) (пример использования)
+def cached(ttl: int | timedelta | None = None, attr: str = 'cache') -> Decorator:
     """
     Кэширование функций component'ов
     :param ttl: время "жизни" элемента (секунды)
@@ -76,22 +79,15 @@ def cache(ttl: int | timedelta | None = None) -> Decorator:
         ttl = int(ttl.total_seconds())
 
     def inner(func: Callable):
-
         return_type = inspect.signature(func).return_annotation
         assert return_type != inspect.Signature.empty, (
             'Необходимо указать аннотацию возвращаемого значения функции'
         )
 
-        wrapper = Wrapper(func, return_type, ttl)
+        wrapper = Wrapper(func, return_type, attr, ttl)
 
-        # wrapper = functools.update_wrapper(wrapper, func)
-        # wrapper = add_extra_annotation(wrapper, 'cache_', Cache)
-        setattr(wrapper, '__extra_annotations__', {'cache_': Cache})
-        is_func = inspect.isfunction(wrapper)
-        have_method = hasattr(wrapper, '__extra_annotations__')
-        # wrapper.__extra_annotations__['cache_'] = Cache
-        # TODO: wrapper.invalidate = invalidate
-        # TODO: wrapper.refresh = refresh
+        wrapper = functools.update_wrapper(wrapper, func)
+        wrapper = add_extra_annotation(wrapper, 'cache', Cache)
 
         return wrapper
 

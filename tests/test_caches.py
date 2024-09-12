@@ -58,14 +58,8 @@ def next_year():
 def test_get_set_without_ttl(cache_instance):
     key = 'test'
     cache_instance.set(key, 10.5)
-    cache_result, found = cache_instance.get(key, float)
-
-    assert (
-        cache_result
-        and cache_result.value == 10.5
-        and cache_result.ttl is None
-        and found
-    )
+    cache_value, found = cache_instance.get(key, float)
+    assert found and cache_value == 10.5
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
@@ -73,14 +67,9 @@ def test_get_set_with_ttl(cache_instance):
     key, value, ttl = 'test', -0.1, 60
 
     cache_instance.set(key, value, ttl)
-    cache_result, found = cache_instance.get(key, float)
+    cached_value, found = cache_instance.get(key, float)
 
-    assert (
-        cache_result
-        and cache_result.value == value
-        and cache_result.ttl == ttl
-        and found
-    )
+    assert found and cached_value == value
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
@@ -90,7 +79,7 @@ def test_get_set_expired(cache_instance, next_year):
 
     # make sure that the cached value is expired by using 1 year gap
     with freeze_time(next_year):
-        cache_result, found = cache_instance.get(key, float)
+        __, found = cache_instance.get(key, float)
         assert not found
 
 
@@ -98,8 +87,7 @@ def test_get_set_expired(cache_instance, next_year):
 def test_get_set_many_without_ttl(cache_instance):
     elements = {f'test_{index}': float for index in range(5)}
     value = 100.0
-    expected = {key: (CachedValue[cast_to](value), True)
-                for key, cast_to in elements.items()}
+    expected = {key: (value, True) for key, cast_to in elements.items()}
 
     cache_instance.set_many({key: value for key in expected})
 
@@ -107,21 +95,16 @@ def test_get_set_many_without_ttl(cache_instance):
 
     assert {*result.keys()} == {*expected.keys()}
 
-    for key, (element, found) in result.items():
-        expected_element, expected_found = expected[key]
-        assert (
-            expected_element.value == element.value
-            and expected_element.ttl == expected_element.ttl
-            and found == expected_found
-        )
+    for key, (cached_value, found) in result.items():
+        expected_value, expected_found = expected[key]
+        assert cached_value == expected_value and found == expected_found
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
 def test_get_set_many_with_ttl(cache_instance):
     elements = {f'test_{index}': float for index in range(5)}
     value, ttl = 1.0, 60
-    expected = {key: (CachedValue[cast_to](value, ttl), True)
-                for key, cast_to in elements.items()}
+    expected = {key: (value, True) for key, cast_to in elements.items()}
 
     cache_instance.set_many({key: value for key in expected}, ttl)
 
@@ -129,13 +112,9 @@ def test_get_set_many_with_ttl(cache_instance):
 
     assert {*result.keys()} == {*expected.keys()}
 
-    for key, (element, found) in result.items():
-        expected_element, expected_found = expected[key]
-        assert (
-            expected_element.value == element.value
-            and expected_element.ttl == expected_element.ttl
-            and found == expected_found
-        )
+    for key, (cached_value, found) in result.items():
+        expected_value, expected_found = expected[key]
+        assert cached_value == expected_value and found == expected_found
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
@@ -162,7 +141,7 @@ def test_get_set_many_partial(cache_instance, next_year):
 
     with freeze_time(next_year):
         result = [
-            el for el, found in cache_instance.get_many(all_keys).values()
+            value for value, found in cache_instance.get_many(all_keys).values()
             if found
         ]
         assert len(result) == 1
@@ -175,7 +154,8 @@ def test_invalidate(cache_instance):
     cache_instance.set(key, 1.0)
     cache_instance.invalidate(key)
 
-    assert not cache_instance.get(key, float)[1]
+    __, found = cache_instance.get(key, float)
+    assert not found
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
@@ -188,7 +168,7 @@ def test_invalidate_all(cache_instance):
     cache_instance.invalidate_all()
 
     results = cache_instance.get_many(elements)
-    assert all(not found for el, found in results.values())
+    assert all(not found for __, found in results.values())
 
 
 @pytest.mark.parametrize(

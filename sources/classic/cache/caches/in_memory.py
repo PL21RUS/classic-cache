@@ -17,16 +17,6 @@ class InMemoryCache(Cache):
     def __init__(self):
         self.cache = {}
 
-    def _save_value(
-        self,
-        key: Key,
-        cached_value: CachedValue,
-        ttl: int | None = None,
-    ) -> None:
-        self.cache[key] = (
-            time.monotonic() + ttl if ttl else None, cached_value
-        )
-
     def set(
         self,
         key: Key,
@@ -34,7 +24,9 @@ class InMemoryCache(Cache):
         ttl: int | None = None,
     ) -> None:
         cached_value = CachedValue(value, ttl=ttl)
-        self._save_value(key, cached_value, ttl)
+        self.cache[key] = (
+            time.monotonic() + ttl if ttl else None, cached_value
+        )
 
     def set_many(
         self,
@@ -42,24 +34,26 @@ class InMemoryCache(Cache):
         ttl: int | None = None
     ) -> None:
         for key, value in elements.items():
-            cached_value = CachedValue[Value](value, ttl=ttl)
-            self._save_value(key, cached_value, ttl)
+            self.set(key, value, ttl=ttl)
 
     def exists(self, key: Key) -> bool:
-        if key in self.cache:
+        try:
             expiry, _ = self.cache[key]
-            # TODO: в каких случаях возвращать True?
-            return expiry is None or time.monotonic() < expiry
-        return False
+        except KeyError:
+            return False
+
+        return expiry is None or time.monotonic() < expiry
 
     def get(self, key: Key, cast_to: Type[Value]) -> Result:
-        if key in self.cache:
-            expiry, value = self.cache[key]
-            if expiry is None or time.monotonic() < expiry:
-                return value, True
-            else:
-                del self.cache[key]
-        return None, False
+        try:
+            expiry, cached_value = self.cache[key]
+        except KeyError:
+            return None, False
+
+        if expiry is not None and time.monotonic() >= expiry:
+            return None, False
+
+        return cached_value.value, True
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
         return {key: self.get(key, cast_to) for key, cast_to in keys.items()}

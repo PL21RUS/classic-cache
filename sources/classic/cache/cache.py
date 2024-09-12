@@ -13,8 +13,8 @@ Result = tuple[Value, bool]
 
 # TODO: пробрасывать версию прилождения и добавить проверку с удалением
 #  (если версия не бъется с текущей)
-# TODO: проверить с array-like (array_like=True)
-class CachedValue(Generic[Value], msgspec.Struct):
+# TODO: сделать на тюплах, убрать ttl (для редиса не нужен)
+class CachedValue(Generic[Value], msgspec.Struct, array_like=True):
     """
     Хранимое значение в кэше с дополнительной метаинформацией
     """

@@ -82,15 +82,18 @@ class RedisCache(Cache):
     def exists(self, key: Key) -> bool:
         return self.connection.exists(self._serialize(key))
 
+    # TODO: возвращать value, а не CachedValue
     def get(self, key: Key, cast_to: Type[Value]) -> Result:
         encoded_key = self._serialize(key)
         # TODO: редис возвращает None, если ключа нет.
         #  Как отличить от значения None?
         _value = self.connection.get(encoded_key)
 
+        if _value is None:
+            return None, False
+
         return (
-            self._deserialize(_value, CachedValue[cast_to]),
-            _value is not None
+            self._deserialize(_value, CachedValue[cast_to]).value, True
         )
 
     def get_many(self, keys: dict[Key, Type[Value]]) -> Mapping[Key, Result]:
@@ -101,15 +104,15 @@ class RedisCache(Cache):
         # значения возвращаются в том же порядке, как были поданы ключи.
         # Дополнительно фильтруем ключ-значение, если оно исчезло
         # из Redis'а по какой-то причине
-        return {
-            key: (
-                self._deserialize(decoded_value, CachedValue[cast_to]),
-                decoded_value is not None
-            )
-            for (key, cast_to), decoded_value in zip(
-                keys.items(), decoded_values
-            )
-        }
+        result = {}
+        for (key, cast_to), value in zip(keys.items(), decoded_values):
+            if value is None:
+                result[key] = None, False
+            else:
+                result[key] = (
+                    self._deserialize(value, CachedValue[cast_to]).value, True
+                )
+        return result
 
     def invalidate(self, key: Key) -> None:
         encoded_key = self._serialize(key)
