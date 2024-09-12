@@ -25,7 +25,7 @@ class RedisCache(Cache):
     """
     connection: Redis
     key_function = field(default_factory=MsgSpec)
-    version: str | None = None
+    version: int | None = None
 
     def __post_init__(self):
         if not redis_installed:
