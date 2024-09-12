@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Hashable
 
 from orjson import dumps
 
@@ -23,11 +23,11 @@ class OrJson(FuncKeyCreator):
         self.options = options
         self.default = default
 
-    def hash_arguments(self, *args, **kwargs) -> int | str | None:
+    def hash_arguments(self, *args, **kwargs) -> Hashable | None:
         if not (args or kwargs):
             return None
 
-        kwargs = {key: kwargs[key] for key in sorted(kwargs.keys())}
-        arguments = [*args, *[(key, value) for key, value in kwargs.items()]]
+        kwargs = sorted(kwargs.items())
+        arguments = (*args, *kwargs)
 
-        return dumps(arguments, self.default, self.options).decode('utf8')
+        return dumps(arguments, self.default, self.options)

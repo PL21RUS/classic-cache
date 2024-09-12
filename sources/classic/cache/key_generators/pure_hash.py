@@ -11,7 +11,7 @@ class PureHash(FuncKeyCreator):
     **Обеспечивает персистентность только в рамках одного процесса!**
     """
 
-    def hash_arguments(self, *args, **kwargs) -> int | str | None:
+    def hash_arguments(self, *args, **kwargs) -> Hashable | None:
 
         # В боевых условиях надо вызывать с -OO для вырезания assert'ов
         assert all(isinstance(arg, Hashable) for arg in args)

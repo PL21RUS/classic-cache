@@ -1,3 +1,5 @@
+from typing import Hashable
+
 from hashlib import blake2b
 from pickle import dumps
 
@@ -10,7 +12,7 @@ class Blake2b(FuncKeyCreator):
     (более медленная, чем `PureHash`, однако более устойчивая к коллизиям)
     """
 
-    def hash_arguments(self, *args, **kwargs) -> int | str| None:
+    def hash_arguments(self, *args, **kwargs) -> Hashable | None:
         if not (args or kwargs):
             return None
 

@@ -1,11 +1,10 @@
-import time
-
 from dataclasses import field
 from typing import Mapping, Type
 
 try:
     from redis import Redis
     from redis.client import Pipeline as RedisPipeline
+
     redis_installed = True
 except ImportError:
     Redis = RedisPipeline = Type
@@ -13,8 +12,10 @@ except ImportError:
 
 from classic.components import component
 
-from ..cache import Cache, Value, Key, Result, CachedValue
-from ..key_generators import Blake2b
+from ..cache import Cache, Value, Key, Result
+from ..key_generators import MsgSpec
+
+CachedValue = tuple[Value, str | None]
 
 
 @component
@@ -23,8 +24,8 @@ class RedisCache(Cache):
     Redis-реализация кэширования (TTL without history)
     """
     connection: Redis
+    key_function = field(default_factory=MsgSpec)
     version: str | None = None
-    key_function = field(default_factory=Blake2b)
 
     def __post_init__(self):
         if not redis_installed:
@@ -36,7 +37,7 @@ class RedisCache(Cache):
         self,
         connection: Redis | RedisPipeline,
         key: Key,
-        value: CachedValue,
+        value: Value,
         ttl: int | None = None,
     ) -> None:
         """
@@ -47,8 +48,9 @@ class RedisCache(Cache):
         :param value: элемент для сохранения
         :param ttl: время "жизни" элемента
         """
+        cached_value = (value, self.version)
         encoded_key = self._serialize(key)
-        encoded_value = self._serialize(value)
+        encoded_value = self._serialize(cached_value)
 
         if ttl:
             # set TTL operation (will be deleted after x seconds)
@@ -63,8 +65,7 @@ class RedisCache(Cache):
         value: Value,
         ttl: int | None = None,
     ) -> None:
-        cached_value = (value, ttl, time.monotonic(), self.version)
-        self._save_value(self.connection, key, cached_value, ttl)
+        self._save_value(self.connection, key, value, ttl)
 
     def set_many(
         self,
@@ -73,12 +74,10 @@ class RedisCache(Cache):
     ) -> None:
         # Используем механизм pipeline для ускорения процесса записи
         # https://redis.io/docs/manual/pipelining/
-
         pipe = self.connection.pipeline()
 
         for key, value in elements.items():
-            cached_value = (value, ttl, time.monotonic(), self.version)
-            self._save_value(pipe, key, cached_value, ttl)
+            self._save_value(pipe, key, value, ttl)
 
         pipe.execute()
 
@@ -87,16 +86,12 @@ class RedisCache(Cache):
 
     def get(self, key: Key, cast_to: Type[Value]) -> Result:
         encoded_key = self._serialize(key)
-        # TODO: редис возвращает None, если ключа нет.
-        #  Как отличить от значения None? Сделать объект Empty tagged=True
-        _value = self.connection.get(encoded_key)
-
-        if _value is None:
+        value = self.connection.get(encoded_key)
+        if value is None:
             return None, False
 
-        value, _, _, version = self._deserialize(_value, CachedValue[cast_to])
-
-        if version != self.version:
+        value, version = self._deserialize(value, CachedValue[cast_to])
+        if self.version and version < self.version:
             self.invalidate(key)
             return None, False
 
@@ -111,14 +106,12 @@ class RedisCache(Cache):
         # Дополнительно фильтруем ключ-значение, если оно исчезло
         # из Redis'а по какой-то причине
         result = {}
-        for (key, cast_to), _value in zip(keys.items(), decoded_values):
-            if _value is None:
+        for (key, cast_to), value in zip(keys.items(), decoded_values):
+            if value is None:
                 result[key] = None, False
             else:
-                value, _, _, version = self._deserialize(
-                    _value, CachedValue[cast_to]
-                )
-                if version == self.version:
+                value, version = self._deserialize(value, CachedValue[cast_to])
+                if not self.version or version >= self.version:
                     result[key] = value, True
                 else:
                     result[key] = None, False

@@ -8,7 +8,6 @@ from .key_generator import FuncKeyCreator
 Key = TypeVar('Key', bound=Hashable)
 Value = TypeVar('Value', bound=object)
 Result = tuple[Value, bool]
-CachedValue = tuple[Value, int | None, float, str | None]
 
 
 class Cache(ABC):
@@ -20,14 +19,11 @@ class Cache(ABC):
     """
     Реализация хэширования функции и ее аргументов
     """
-    version: int | None = None
 
     def _serialize(self, element: Any) -> bytes:
         return msgspec.json.encode(element)
 
     def _deserialize(self, element: bytes | None, cast_to: Any) -> Any:
-        if element is None:
-            return None
         return msgspec.json.decode(element, type=cast_to)
 
     @abstractmethod

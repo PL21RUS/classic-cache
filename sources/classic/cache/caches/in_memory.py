@@ -7,7 +7,6 @@ from ..cache import Cache, Key, Value, Result
 from ..key_generators import PureHash
 
 
-# TODO: добавить сериализатор
 @component
 class InMemoryCache(Cache):
     """

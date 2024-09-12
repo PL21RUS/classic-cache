@@ -53,12 +53,21 @@ def next_year():
     return datetime(year=today.year + 1, month=today.month, day=today.day)
 
 
+# TODO: добавить тесты на версию кэша
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
 def test_get_set_without_ttl(cache_instance):
     key = 'test'
     cache_instance.set(key, 10.5)
     cache_value, found = cache_instance.get(key, float)
     assert found and cache_value == 10.5
+
+
+@pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
+def test_get_set_none_value(cache_instance):
+    key = 'test'
+    cache_instance.set(key, None)
+    cache_value, found = cache_instance.get(key, None)
+    assert found and cache_value is None
 
 
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
