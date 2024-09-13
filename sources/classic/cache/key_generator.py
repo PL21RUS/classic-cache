@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from inspect import isclass, ismethod
-from typing import Callable
+from typing import Callable, Hashable
 
 
 class FuncKeyCreator(ABC):
@@ -12,7 +12,7 @@ class FuncKeyCreator(ABC):
     ARGS_SEP = ':'
 
     @abstractmethod
-    def hash_arguments(self, *args, **kwargs) -> int | str | None:
+    def hash_arguments(self, *args, **kwargs) -> Hashable | None:
         """
         Метод представления `args` и `kwargs` функции в хэш (число/строка)
         :param args: позиционные аргументы

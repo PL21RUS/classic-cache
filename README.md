@@ -37,29 +37,14 @@ class SomeClass:
         return arg1 + arg2
 
 # кеширование в памяти
-some_instance = SomeClass(cache=InMemoryCache())
+cache = InMemoryCache()
 # кеширование в Redis
-some_instance = SomeClass(cache=RedisCache(connection=Redis()))
-```
+cache = RedisCache(connection=Redis())
 
-### Инвалидация кэша
+some_instance = SomeClass(cache=cache)
 
-Вы можете вручную инвалидировать кэш для определенного метода так:
-
-```python
-some_instance = SomeClass(cache=...)
+# ручная инвалидация кэша
 some_instance.some_method.invalidate(1, 2)
-```
-
-Это удалит кэшированный результат для `some_method` с аргументами `1` и `2`.
-
-### Обновление кэша
-
-Вы можете вручную обновить кэш для определенного метода так:
-
-```python
-some_instance = SomeClass(cache=...)
+# ручное обновление кэша
 some_instance.some_method.refresh(1, 2)
 ```
-
-Это обновит кэшированный результат для `some_method` с аргументами `1` и `2`.

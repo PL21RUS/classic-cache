@@ -1,4 +1,6 @@
 import time
+from dataclasses import field
+
 from typing import Mapping, Type
 
 from classic.components import component
@@ -9,13 +11,8 @@ from ..key_generators import PureHash
 
 @component
 class InMemoryCache(Cache):
-    """
-    In-memory реализация кэширования
-    """
-    key_function = PureHash()
-
-    def __init__(self):
-        self.cache = {}
+    key_function = field(default_factory=PureHash)
+    cache: dict[Key, tuple[int | None, bytes]] = field(default_factory=dict)
 
     def set(
         self,

@@ -15,7 +15,7 @@ from classic.components import component
 from ..cache import Cache, Value, Key, Result
 from ..key_generators import MsgSpec
 
-CachedValue = tuple[Value, str | None]
+CachedValue = tuple[Value, int | None]
 
 
 @component

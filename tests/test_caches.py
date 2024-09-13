@@ -53,7 +53,34 @@ def next_year():
     return datetime(year=today.year + 1, month=today.month, day=today.day)
 
 
-# TODO: добавить тесты на версию кэша
+@pytest.mark.skipif(
+    not redis_installed, reason='redis package is not installed'
+)
+def test_get_set_with_actual_version_redis(redis_cache):
+    key, value, version = 'test', 1.0, 1
+    redis_cache.version = version
+
+    redis_cache.set(key, value)
+    cached_value, found = redis_cache.get(key, float)
+
+    assert found and cached_value == value
+
+
+@pytest.mark.skipif(
+    not redis_installed, reason='redis package is not installed'
+)
+def test_get_set_with_old_version_redis(redis_cache):
+    key, value, version = 'test', 1.0, 1
+    redis_cache.version = version
+
+    redis_cache.set(key, value)
+    redis_cache.version += 1
+
+    cached_value, found = redis_cache.get(key, float)
+
+    assert not found
+
+
 @pytest.mark.parametrize('cache_instance', cache_instances, indirect=True)
 def test_get_set_without_ttl(cache_instance):
     key = 'test'
