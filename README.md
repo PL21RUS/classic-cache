@@ -22,8 +22,6 @@ pip install classic-cache[redis]
 
 Вот несколько примеров использования Classic-Cache.
 
-### Кэширование в памяти
-
 ```python
 from classic.cache import cached, InMemoryCache, RedisCache
 from classic.components import component
